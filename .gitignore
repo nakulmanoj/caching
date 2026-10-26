@@ -29,6 +29,9 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
+# Paper files
+paper*
+
 # Python cache
 __pycache__/
 *.py[cod]
