@@ -1,0 +1,57 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wealthwise-postgres
+    environment:
+      POSTGRES_DB: wealthwise
+      POSTGRES_USER: wealthwise
+      POSTGRES_PASSWORD: wealthwise
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/main/resources/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wealthwise"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: wealthwise-redis
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+      --appendonly no
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Optional: time-series store for E_stale measurements
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: wealthwise-influx
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: wealthwise123
+      DOCKER_INFLUXDB_INIT_ORG: wealthwise
+      DOCKER_INFLUXDB_INIT_BUCKET: staleness
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: wealthwise-token
+    ports:
+      - "8086:8086"
+    volumes:
+      - influx_data:/var/lib/influxdb2
+
+volumes:
+  postgres_data:
+  influx_data:

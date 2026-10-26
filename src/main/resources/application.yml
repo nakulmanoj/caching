@@ -1,0 +1,132 @@
+spring:
+  application:
+    name: wealthwise
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/wealthwise
+    username: wealthwise
+    password: wealthwise
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+
+  jpa:
+    hibernate:
+      ddl-auto: none          # schema.sql manages DDL
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  sql:
+    init:
+      mode: always
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 200ms
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 20
+          min-idle: 5
+
+  cache:
+    type: redis
+
+# Actuator — expose all endpoints for Prometheus scraping
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,caches
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5, 0.75, 0.95, 0.99
+
+# Application-level configuration
+wealthwise:
+  # GBM Simulator settings
+  simulator:
+    enabled: true               # false = use live market data API
+    tick-interval-ms: 1000      # how often GBM steps are computed
+    base-prices:
+      AAPL: 195.00
+      MSFT: 415.00
+      JPM: 210.00
+      GS: 490.00
+      XOM: 115.00
+      TSLA: 250.00
+      AMZN: 195.00
+      JNJ: 155.00
+      VZ: 42.00
+      GLD: 230.00
+
+  # Volatility regime thresholds (σ as % per minute)
+  volatility:
+    low-threshold: 0.5
+    high-threshold: 2.0
+
+  # Dynamic TTL configuration
+  dynamic-ttl:
+    k-constant: 5.0             # TTL = k / σ  (seconds)
+    min-ttl-seconds: 2
+    max-ttl-seconds: 120
+
+  # Staleness measurement
+  staleness:
+    enabled: true
+    write-to-db: true           # also write to staleness_measurement table
+    log-to-csv: true
+    csv-output-path: ./results/staleness.csv
+
+---
+# ===== CACHE-ASIDE PROFILE =====
+spring:
+  config:
+    activate:
+      on-profile: cache-aside
+
+wealthwise:
+  caching:
+    strategy: cache-aside
+    ttl-policy: static-30       # overridden per experiment run
+
+  experiment:
+    strategy-label: cache-aside
+
+---
+# ===== WRITE-THROUGH PROFILE =====
+spring:
+  config:
+    activate:
+      on-profile: write-through
+
+wealthwise:
+  caching:
+    strategy: write-through
+    ttl-policy: static-30
+
+  experiment:
+    strategy-label: write-through
+
+---
+# ===== STALE-WHILE-REVALIDATE PROFILE =====
+spring:
+  config:
+    activate:
+      on-profile: swr
+
+wealthwise:
+  caching:
+    strategy: swr
+    ttl-policy: static-30
+    swr-stale-duration-seconds: 10   # serve stale for up to 10s while refreshing
+
+  experiment:
+    strategy-label: swr
